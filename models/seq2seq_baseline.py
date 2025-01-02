@@ -39,7 +39,7 @@ from utils.text_process import maybe_format
 logger = logging.getLogger("__main__")
 
 os.environ['NCCL_TIMEOUT'] = '5000000'
-os.environ['NCCL_BLOCKING_WAIT'] = '1'
+os.environ['TORCH_NCCL_BLOCKING_WAIT'] = '1'
 
 class Seq2SeqDataset(Dataset):
     """
