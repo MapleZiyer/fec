@@ -3,6 +3,7 @@
 echo "Start to train the t5 with openai augmented data for factual error correction."
 
 # t5 models do not support fp16 training.
+export CUDA_VISIBLE_DEVICES=1,2,3,4
 
 for DATA_PREFIX in  gold_negate_8-shot_2-retrieved-evidence 
 do
@@ -34,7 +35,7 @@ do
     # 3 predict
     for num_beams in 5
     do
-        python -u -m torch.distributed.launch --nproc_per_node=1 --master_port=9538  \
+        python -u -m torch.distributed.launch --nproc_per_node=1 --master_port=9539  \
             ../models/seq2seq_baseline.py   \
             --initialization t5-base \
             --per_device_eval_batch_size 64 \
