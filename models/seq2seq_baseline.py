@@ -751,6 +751,7 @@ def set_env(args):
     # logger.addHandler(sh)
     logger.setLevel(logging.INFO if args.local_rank in [-1, 0] else logging.WARN)
     print(logger)
+    print(f"Rank {torch.distributed.get_rank()}, Device {torch.device('cuda', torch.cuda.current_device())}")
 
 
 def load_model(args):
