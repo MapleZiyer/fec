@@ -697,7 +697,6 @@ def set_env(args):
         device = torch.device("cuda",local_rank)
         torch.distributed.init_process_group(backend="nccl",init_method="env://",world_size=int(os.environ["WORLD_SIZE"]),rank=int(os.environ["RANK"]))
         args.n_gpu = torch.distributed.get_world_size()
-        dist.barrier(device_ids=[local_rank])
 
     args.device = device
     if args.local_rank != -1:
