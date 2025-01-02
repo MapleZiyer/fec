@@ -4,6 +4,8 @@ echo "Start to train the t5 with openai augmented data for factual error correct
 
 # t5 models do not support fp16 training.
 export CUDA_VISIBLE_DEVICES=1,2,3,4
+export NCCL_BLOCKING_WAIT=1
+export NCCL_TIMEOUT=3600
 
 for DATA_PREFIX in  gold_negate_8-shot_2-retrieved-evidence 
 do
