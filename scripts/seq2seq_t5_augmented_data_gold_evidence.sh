@@ -3,6 +3,8 @@
 echo "Start to train the t5 with openai augmented data for factual error correction."
 
 # t5 models do not support fp16 training.
+export NCCL_TIMEOUT=3600
+
 CUDA_VISIBLE_DEVICES=0,1
 
 for DATA_PREFIX in  gold_negate_8-shot_2-retrieved-evidence 
@@ -14,6 +16,7 @@ do
         ../models/seq2seq_baseline.py  \
         --train_file ../openai_augmented_data/${DATA_PREFIX}_train_gpt-3.5-turbo.jsonl \
         --initialization t5-base \
+	--model_path ~/.cache/huggingface/hub/models--google-t5--t5-base/snapshots/a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1 \
         --per_device_train_batch_size 32 \
         --gradient_accumulation_steps 1 \
         --lr 4e-5 \
