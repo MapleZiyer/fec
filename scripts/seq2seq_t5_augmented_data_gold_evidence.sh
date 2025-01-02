@@ -5,6 +5,7 @@ export NCCL_TIMEOUT=3600
 
 CUDA_VISIBLE_DEVICES=0,1
 
+
 for DATA_PREFIX in gold_negate_8-shot_2-retrieved-evidence
 do
     NUM_DATA_INSTANCE=11023
