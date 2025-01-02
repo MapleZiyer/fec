@@ -13,7 +13,7 @@ from torch.utils.data import Dataset, DataLoader, RandomSampler, SequentialSampl
 from torch.optim import AdamW, Adam
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data.distributed import DistributedSampler
-from transformers import  AutoConfig, AutoModelForSeq2SeqLM, AutoTokenizer, get_linear_schedule_with_warmup
+from transformers import AutoConfig, AutoModelForSeq2SeqLM, AutoTokenizer, get_linear_schedule_with_warmup
 # from transformers import BartForConditionalGeneration, BartTokenizer, BartConfig, T5ForConditionalGeneration, T5BartTokenizer, get_linear_schedule_with_warmup, get_cosine_schedule_with_warmup
 import os
 import sys
@@ -30,24 +30,27 @@ from tqdm import tqdm
 #     from torch.utils.tensorboard import SummaryWriter
 # except ImportError:
 from tensorboardX import SummaryWriter
-    
+
 sys.path.append('../')
 from utils.functions import set_seed, get_optimizer
 from utils.text_process import maybe_format
+
 # logger = logging.getLogger(__name__)
 logger = logging.getLogger("__main__")
 
+os.environ['NCCL_TIMEOUT'] = '5000000'
+os.environ['NCCL_BLOCKING_WAIT'] = '1'
 
 class Seq2SeqDataset(Dataset):
     """
     this class is used for loading training/validation/testing set for seq2seq models.
     """
 
-    def __init__(self, filename, tokenizer, max_src_len=None, max_tgt_len=None, 
-                 use_evidence=False, use_gold_evidence = False, num_evidence=None, 
-                 use_mutation_type = False, source_prefix = None, 
-                 dataset_percent = 1.0, num_data_instance = -1,
-                 inference=False, start_idx = None, end_idx = None):
+    def __init__(self, filename, tokenizer, max_src_len=None, max_tgt_len=None,
+                 use_evidence=False, use_gold_evidence=False, num_evidence=None,
+                 use_mutation_type=False, source_prefix=None,
+                 dataset_percent=1.0, num_data_instance=-1,
+                 inference=False, start_idx=None, end_idx=None):
         """
         Args:
             filename (str): the name of the input file
@@ -69,7 +72,7 @@ class Seq2SeqDataset(Dataset):
         self.tokenizer = tokenizer
         self.max_src_len = max_src_len
         self.max_tgt_len = max_tgt_len
-        self.use_evidence = use_evidence 
+        self.use_evidence = use_evidence
         self.use_gold_evidence = use_gold_evidence
         self.num_evidence = num_evidence
         self.use_mutation_type = use_mutation_type
@@ -102,28 +105,28 @@ class Seq2SeqDataset(Dataset):
                     "evidence": evidence,
                 }
                 self.data_list.append(data_instance)
-                
-        if self.dataset_percent<1:
-            self.num_data_instance = int(self.dataset_percent*len(self.data_list))
-        
-        if self.num_data_instance!=-1:
+
+        if self.dataset_percent < 1:
+            self.num_data_instance = int(self.dataset_percent * len(self.data_list))
+
+        if self.num_data_instance != -1:
             random.shuffle(self.data_list)
             self.data_list = self.data_list[:self.num_data_instance]
             print(f"Use {self.num_data_instance} to train the model.")
-        
+
         if self.inference:
             self.data_list = self.data_list[self.start_idx:self.end_idx]
-            
+
         self.len = len(self.data_list)
-        
+
     def prepare_src(self, instance):
         if not self.use_evidence and not self.use_mutation_type:
             return instance["src"]
 
-        src = "claim: " + instance["src"] 
+        src = "claim: " + instance["src"]
         if instance["mutation_type"] is not None and self.use_mutation_type:
             src += " " + "mutation: " + instance["mutation_type"]
-            
+
         if instance["evidence"] is not None and self.use_evidence:
             src += " " + "evidence: " + instance["evidence"]
         return src
@@ -135,31 +138,37 @@ class Seq2SeqDataset(Dataset):
     #         )
 
     #     return "correction: " + target
-    
+
     def __getitem__(self, idx):
         data_instance = self.data_list[idx]
         src = self.source_prefix + self.prepare_src(data_instance)
         tgt = data_instance['tgt']
-        
-        src_tokenization = torch.tensor(self.tokenizer.encode(src, max_length=self.max_src_len, truncation=True, padding=False, add_special_tokens=True), 
-                                        dtype=torch.long)
+
+        src_tokenization = torch.tensor(
+            self.tokenizer.encode(src, max_length=self.max_src_len, truncation=True, padding=False,
+                                  add_special_tokens=True),
+            dtype=torch.long)
         if not self.inference:
             if 'T5Tokenizer' in self.tokenizer.__class__.__name__:
-            # t5 has no bos_token_id, so we use pad_token_id (i.e., 0) as bos_token_id
-            # please also refer to _shift_right in https://huggingface.co/transformers/v3.0.2/_modules/transformers/modeling_t5.html#T5ForConditionalGeneration
-                tgt_tokenization = torch.tensor([self.tokenizer.pad_token_id] + self.tokenizer.encode(tgt, max_length=self.max_tgt_len, truncation=True, padding=False, add_special_tokens=True), 
-                                                dtype=torch.long)
+                # t5 has no bos_token_id, so we use pad_token_id (i.e., 0) as bos_token_id
+                # please also refer to _shift_right in https://huggingface.co/transformers/v3.0.2/_modules/transformers/modeling_t5.html#T5ForConditionalGeneration
+                tgt_tokenization = torch.tensor(
+                    [self.tokenizer.pad_token_id] + self.tokenizer.encode(tgt, max_length=self.max_tgt_len,
+                                                                          truncation=True, padding=False,
+                                                                          add_special_tokens=True),
+                    dtype=torch.long)
             else:
-                tgt_tokenization = torch.tensor(self.tokenizer.encode(tgt, max_length=self.max_tgt_len, truncation=True, padding=False, add_special_tokens=True), 
-                                                dtype=torch.long)
+                tgt_tokenization = torch.tensor(
+                    self.tokenizer.encode(tgt, max_length=self.max_tgt_len, truncation=True, padding=False,
+                                          add_special_tokens=True),
+                    dtype=torch.long)
         else:
             tgt_tokenization = None
 
-        
         return {
-                'src_tokenization': src_tokenization,
-                'tgt_tokenization': tgt_tokenization,
-                'idx': idx}
+            'src_tokenization': src_tokenization,
+            'tgt_tokenization': tgt_tokenization,
+            'idx': idx}
 
     def __len__(self):
         return self.len
@@ -174,8 +183,8 @@ class Seq2SeqDataset(Dataset):
         if self.inference:
             idx_list = [s['idx'] for s in samples]
             data = [self.data_list[idx] for idx in idx_list]
-            return {"input_ids": encoder_inputs, 
-                    "attention_mask": attention_mask, 
+            return {"input_ids": encoder_inputs,
+                    "attention_mask": attention_mask,
                     "data": data}
 
         decoder_input_list = [s['tgt_tokenization'][:-1] for s in samples]
@@ -184,8 +193,8 @@ class Seq2SeqDataset(Dataset):
         decoder_labels = pad_sequence(decoder_label_list, batch_first=True, padding_value=-100)
 
         return {"input_ids": encoder_inputs,
-                "attention_mask": attention_mask, 
-                "decoder_input_ids": decoder_inputs, 
+                "attention_mask": attention_mask,
+                "decoder_input_ids": decoder_inputs,
                 "labels": decoder_labels}
 
 
@@ -194,47 +203,47 @@ def generate(model, tokenizer, test_dataloader, args):
     Generate queries with the well-trained model.
     """
     if args.do_sample:
-        if args.top_k>0:
+        if args.top_k > 0:
             prefix = f'top_k_{args.top_k}'
         else:
-            assert args.top_p<1
+            assert args.top_p < 1
             prefix = f'top_p_{args.top_p}'
     else:
         prefix = f'beam_{args.num_beams}'
-    
-    if args.num_return_sequences>1: 
+
+    if args.num_return_sequences > 1:
         prefix += f'_rs_{args.num_return_sequences}'
-    if args.repetition_penalty>1:
+    if args.repetition_penalty > 1:
         prefix += f'_rp_{args.repetition_penalty}'
-    if args.temperature!=1: 
+    if args.temperature != 1:
         prefix += f'_tp_{args.temperature}'
     model.eval()
 
     _id = 0
-    if args.local_rank==-1:
+    if args.local_rank == -1:
         output_filename = os.path.join(args.output_dir, prefix + ".txt")
     else:
         output_filename = os.path.join(args.output_dir, prefix + f"_gpu_{args.local_rank}.txt")
-    
+
     fw = open(output_filename, 'w', encoding='utf-8')
 
     with torch.no_grad():
         for batch_generator in tqdm(test_dataloader, desc="Generate", disable=args.local_rank not in [-1, 0]):
-            
+
             f = model.module if hasattr(model, "module") else model
-            outputs = f.generate(input_ids = batch_generator['input_ids'].to(args.device), 
-                                 attention_mask = batch_generator['attention_mask'].to(args.device),
-                                 max_length = args.max_tgt_len,
-                                 num_beams = args.num_beams,
-                                 do_sample  = args.do_sample,
-                                 top_k = args.top_k,
-                                 top_p = args.top_p,
-                                 num_beam_groups = args.num_beam_groups,
-                                 num_return_sequences = args.num_return_sequences,
-                                 repetition_penalty = args.repetition_penalty,
-                                 temperature = args.temperature)
+            outputs = f.generate(input_ids=batch_generator['input_ids'].to(args.device),
+                                 attention_mask=batch_generator['attention_mask'].to(args.device),
+                                 max_length=args.max_tgt_len,
+                                 num_beams=args.num_beams,
+                                 do_sample=args.do_sample,
+                                 top_k=args.top_k,
+                                 top_p=args.top_p,
+                                 num_beam_groups=args.num_beam_groups,
+                                 num_return_sequences=args.num_return_sequences,
+                                 repetition_penalty=args.repetition_penalty,
+                                 temperature=args.temperature)
             generated_example = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-            assert len(generated_example)%args.num_return_sequences==0
+            assert len(generated_example) % args.num_return_sequences == 0
             tmp_list = []
             example_list = []
             for i, example in enumerate(generated_example):
@@ -243,16 +252,16 @@ def generate(model, tokenizer, test_dataloader, args):
                     # tmp_list = sorted(tmp_list)
                     example_list.append(tmp_list)
                     tmp_list = []
-            
+
             for data_instance, example in zip(batch_generator['data'], example_list):
                 data_instance['generated_text'] = example
-                fw.write(json.dumps(data_instance)+'\n')
+                fw.write(json.dumps(data_instance) + '\n')
             fw.flush()
     fw.close()
-    if args.local_rank!=-1: 
+    if args.local_rank != -1:
         # merge the data from all gpus
         torch.distributed.barrier()
-        if args.local_rank==0:
+        if args.local_rank == 0:
             with open(os.path.join(args.output_dir, prefix + ".txt"), 'w') as fw:
                 for i in range(args.world_size):
                     output_filename = os.path.join(args.output_dir, prefix + f"_gpu_{i}.txt")
@@ -262,7 +271,7 @@ def generate(model, tokenizer, test_dataloader, args):
                             fw.write(line)
                     os.remove(output_filename)
     logger.info(f"The generated text is saved at {os.path.join(args.output_dir, prefix + '.txt')}")
-            
+
 
 def predict(model, tokenizer, args):
     if args.fp16:
@@ -274,7 +283,7 @@ def predict(model, tokenizer, args):
     model.eval()
     with open(args.test_file, 'r') as fr:
         num_data_instances = len(fr.readlines())
-    if args.local_rank!=-1:
+    if args.local_rank != -1:
         shard_size = num_data_instances // args.world_size
         start_idx = args.local_rank * shard_size
         end_idx = start_idx + shard_size
@@ -283,18 +292,19 @@ def predict(model, tokenizer, args):
     else:
         start_idx = 0
         end_idx = num_data_instances
-    
+
     test_dataset = Seq2SeqDataset(args.test_file, tokenizer,
-                                    max_src_len=args.max_src_len, max_tgt_len=args.max_tgt_len,
-                                    use_evidence=args.use_evidence, use_gold_evidence = args.use_gold_evidence, num_evidence=args.num_evidence, 
-                                    use_mutation_type = args.use_mutation_type, source_prefix = args.source_prefix, 
-                                    inference=True, start_idx=start_idx, end_idx=end_idx
-                                )
+                                  max_src_len=args.max_src_len, max_tgt_len=args.max_tgt_len,
+                                  use_evidence=args.use_evidence, use_gold_evidence=args.use_gold_evidence,
+                                  num_evidence=args.num_evidence,
+                                  use_mutation_type=args.use_mutation_type, source_prefix=args.source_prefix,
+                                  inference=True, start_idx=start_idx, end_idx=end_idx
+                                  )
     test_sampler = SequentialSampler(test_dataset)
     test_dataloader = DataLoader(test_dataset, sampler=test_sampler,
-                                collate_fn=test_dataset.create_mini_batch,
-                                batch_size=args.per_device_eval_batch_size, 
-                                num_workers=args.preprocessing_num_workers)
+                                 collate_fn=test_dataset.create_mini_batch,
+                                 batch_size=args.per_device_eval_batch_size,
+                                 num_workers=args.preprocessing_num_workers)
     generate(model, tokenizer, test_dataloader, args)
 
 
@@ -317,7 +327,7 @@ def evaluate_dev(args, model, dataloader):
                 batch_generator[k] = v.to(args.device)
             outputs = model(**batch_generator)
             decoder_labels = batch_generator['labels']
-            
+
             lm_loss = outputs.loss
             bts = decoder_labels.shape[0]
             num_tokens = torch.sum(decoder_labels != -100)
@@ -336,7 +346,8 @@ def evaluate_dev(args, model, dataloader):
     model.train()
     logger.info('Validation loss = %.3f.', ave_loss)
     return ave_loss
-    
+
+
 def evaluate(model, tokenizer, args):
     if args.fp16:
         try:
@@ -345,19 +356,21 @@ def evaluate(model, tokenizer, args):
             raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
         model = amp.initialize(model, opt_level=args.fp16_opt_level)
     if args.local_rank != -1:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], 
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank],
                                                           output_device=args.local_rank, find_unused_parameters=False)
     model.eval()
-    dev_dataset = Seq2SeqDataset(   args.validation_file, tokenizer,
-                                    max_src_len=args.max_src_len, max_tgt_len=args.max_tgt_len,
-                                    use_evidence=args.use_evidence, use_gold_evidence = args.use_gold_evidence, num_evidence=args.num_evidence, 
-                                    use_mutation_type = args.use_mutation_type, source_prefix = args.source_prefix, 
-                                    inference=False
-                                )
-    dev_sampler = SequentialSampler(dev_dataset) if args.local_rank == -1 else DistributedSampler(dev_dataset, shuffle=False)
+    dev_dataset = Seq2SeqDataset(args.validation_file, tokenizer,
+                                 max_src_len=args.max_src_len, max_tgt_len=args.max_tgt_len,
+                                 use_evidence=args.use_evidence, use_gold_evidence=args.use_gold_evidence,
+                                 num_evidence=args.num_evidence,
+                                 use_mutation_type=args.use_mutation_type, source_prefix=args.source_prefix,
+                                 inference=False
+                                 )
+    dev_sampler = SequentialSampler(dev_dataset) if args.local_rank == -1 else DistributedSampler(dev_dataset,
+                                                                                                  shuffle=False)
     dev_dataloader = DataLoader(dev_dataset, sampler=dev_sampler,
                                 collate_fn=dev_dataset.create_mini_batch,
-                                batch_size=args.per_device_eval_batch_size, 
+                                batch_size=args.per_device_eval_batch_size,
                                 num_workers=args.preprocessing_num_workers)
 
     dev_loss = evaluate_dev(args, model, dev_dataloader)
@@ -368,17 +381,18 @@ def train(model, tokenizer, args):
     """ Train the model """
     if args.warmup_ratio == 0 and args.warmup_steps == 0:
         logger.warning('You are training a model without using warmup.')
-    elif args.warmup_ratio>0 and args.warmup_steps>0:
+    elif args.warmup_ratio > 0 and args.warmup_steps > 0:
         raise ValueError("You can only specify either warmup_ratio or warmup_steps.")
-    elif args.warmup_ratio>0:
-        args.warmup_steps = int(args.warmup_ratio*args.max_steps)
+    elif args.warmup_ratio > 0:
+        args.warmup_steps = int(args.warmup_ratio * args.max_steps)
         logger.info(f'warmup_steps is {args.warmup_steps}.')
     else:
         pass
-    
+
     tb_writer = SummaryWriter(log_dir=args.tensorboard_dir) if args.local_rank in [-1, 0] else None
 
-    optimizer = get_optimizer(args.optimizer, model, weight_decay=args.weight_decay, lr=args.lr, adam_epsilon=args.adam_epsilon)
+    optimizer = get_optimizer(args.optimizer, model, weight_decay=args.weight_decay, lr=args.lr,
+                              adam_epsilon=args.adam_epsilon)
     if args.fp16:
         try:
             from apex import amp
@@ -394,9 +408,9 @@ def train(model, tokenizer, args):
     logger.info("  Max steps = %d", args.max_steps)
     logger.info("  Instantaneous batch size per GPU = %d", args.per_device_train_batch_size)
     logger.info("  Total train batch size (w. parallel, distributed & accumulation) = %d",
-        args.per_device_train_batch_size * args.gradient_accumulation_steps 
-        *(torch.distributed.get_world_size() if args.local_rank != -1 else 1),
-    )
+                args.per_device_train_batch_size * args.gradient_accumulation_steps
+                * (torch.distributed.get_world_size() if args.local_rank != -1 else 1),
+                )
     logger.info("  Gradient Accumulation steps = %d", args.gradient_accumulation_steps)
 
     total_loss = 0.0
@@ -408,33 +422,36 @@ def train(model, tokenizer, args):
     )
     # optimizer = AdamW(model.parameters(), lr=args.lr)  # the learning rate is linearly scales with the #gpu
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.2, patience=0, verbose=True, min_lr=1e-6)
-    
+
     global_step = 0
     iter_count = 0
 
-    train_dataset = Seq2SeqDataset( args.train_file, tokenizer,
-                                    max_src_len=args.max_src_len, max_tgt_len=args.max_tgt_len,
-                                    use_evidence=args.use_evidence, use_gold_evidence = args.use_gold_evidence, num_evidence=args.num_evidence, 
-                                    use_mutation_type = args.use_mutation_type, source_prefix = args.source_prefix, 
-                                    dataset_percent = args.dataset_percent, num_data_instance = args.num_data_instance,
-                                    inference=False
-                                )
+    train_dataset = Seq2SeqDataset(args.train_file, tokenizer,
+                                   max_src_len=args.max_src_len, max_tgt_len=args.max_tgt_len,
+                                   use_evidence=args.use_evidence, use_gold_evidence=args.use_gold_evidence,
+                                   num_evidence=args.num_evidence,
+                                   use_mutation_type=args.use_mutation_type, source_prefix=args.source_prefix,
+                                   dataset_percent=args.dataset_percent, num_data_instance=args.num_data_instance,
+                                   inference=False
+                                   )
     train_sampler = RandomSampler(train_dataset) if args.local_rank == -1 else DistributedSampler(train_dataset)
     train_dataloader = DataLoader(train_dataset, sampler=train_sampler,
-                                collate_fn=train_dataset.create_mini_batch,
-                                batch_size=args.per_device_train_batch_size, 
-                                num_workers=args.preprocessing_num_workers)
+                                  collate_fn=train_dataset.create_mini_batch,
+                                  batch_size=args.per_device_train_batch_size,
+                                  num_workers=args.preprocessing_num_workers)
     if args.validation_file is not None:
-        dev_dataset = Seq2SeqDataset(   args.validation_file, tokenizer,
-                                        max_src_len=args.max_src_len, max_tgt_len=args.max_tgt_len,
-                                        use_evidence=args.use_evidence, use_gold_evidence = args.use_gold_evidence, num_evidence=args.num_evidence, 
-                                        use_mutation_type = args.use_mutation_type, source_prefix = args.source_prefix, 
-                                        inference=False
-                                    )
-        dev_sampler = SequentialSampler(dev_dataset) if args.local_rank == -1 else DistributedSampler(dev_dataset, shuffle=False)
+        dev_dataset = Seq2SeqDataset(args.validation_file, tokenizer,
+                                     max_src_len=args.max_src_len, max_tgt_len=args.max_tgt_len,
+                                     use_evidence=args.use_evidence, use_gold_evidence=args.use_gold_evidence,
+                                     num_evidence=args.num_evidence,
+                                     use_mutation_type=args.use_mutation_type, source_prefix=args.source_prefix,
+                                     inference=False
+                                     )
+        dev_sampler = SequentialSampler(dev_dataset) if args.local_rank == -1 else DistributedSampler(dev_dataset,
+                                                                                                      shuffle=False)
         dev_dataloader = DataLoader(dev_dataset, sampler=dev_sampler,
                                     collate_fn=dev_dataset.create_mini_batch,
-                                    batch_size=args.per_device_eval_batch_size, 
+                                    batch_size=args.per_device_eval_batch_size,
                                     num_workers=args.preprocessing_num_workers)
 
         dev_loss = evaluate_dev(args, model, dev_dataloader)
@@ -442,7 +459,7 @@ def train(model, tokenizer, args):
     trigger_times = 0
     while global_step < args.max_steps:
         iter_count += 1
-        if args.num_train_epochs >0 and iter_count > args.num_train_epochs:
+        if args.num_train_epochs > 0 and iter_count > args.num_train_epochs:
             break
         if trigger_times >= args.patience:
             logger.info('Early stopping!')
@@ -465,7 +482,6 @@ def train(model, tokenizer, args):
             else:
                 loss.backward()
 
-            
             if (step + 1) % args.gradient_accumulation_steps == 0:
                 if args.fp16:
                     torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
@@ -495,13 +511,13 @@ def train(model, tokenizer, args):
                     if args.local_rank in [-1, 0]:
                         # _save_checkpoint(args, model, optimizer, scheduler, global_step)
                         tb_writer.add_scalar("dev_nll_loss", dev_loss, global_step)
-                        if dev_loss<best_dev_loss:
+                        if dev_loss < best_dev_loss:
                             logger.info('Save the model at {}.'.format(args.output_dir))
                             model_to_save = model.module if hasattr(model, "module") else model
                             model_to_save.save_pretrained(args.output_dir)
                             tokenizer.save_pretrained(args.output_dir)
-                    
-                    if dev_loss<best_dev_loss:
+
+                    if dev_loss < best_dev_loss:
                         trigger_times = 0
                         best_dev_loss = dev_loss
                     else:
@@ -518,7 +534,7 @@ def train(model, tokenizer, args):
         model_to_save = model.module if hasattr(model, "module") else model
         model_to_save.save_pretrained(args.output_dir)
         tokenizer.save_pretrained(args.output_dir)
-        
+
     if args.local_rank in [-1, 0]:
         tb_writer.close()
     return global_step
@@ -535,22 +551,22 @@ def get_parameter():
     parser.add_argument('--train_file', type=str, default='../seq2seq_data/train.jsonl',
                         help='The input training data file (a jsonlines).')
     parser.add_argument('--validation_file', type=str, default=None,
-                        help='An optional input evaluation data file to evaluate the metrics (nll loss) on a jsonlines file.')  
+                        help='An optional input evaluation data file to evaluate the metrics (nll loss) on a jsonlines file.')
     parser.add_argument('--test_file', type=str, default='../seq2seq_data/test.jsonl',
-                    help='An optional input test data file to evaluate the metrics (sari) on a jsonlines file.')  
-    
+                        help='An optional input test data file to evaluate the metrics (sari) on a jsonlines file.')
+
     parser.add_argument('--dataset_percent', type=float, default=1,
                         help='The percentage of data used to train the model.')
     parser.add_argument('--num_data_instance', type=int, default=-1,
                         help='The number of data instances used to train the model. -1 denotes using all data.')
 
     parser.add_argument('--model_path', type=str, default='',
-                    help='Path to pretrained model or model identifier from huggingface.co/models')
-          
+                        help='Path to pretrained model or model identifier from huggingface.co/models')
+
     parser.add_argument('--initialization', type=str, default='bart-base',
-                        choices=["bart-random-base", 
-                                 "facebook/bart-base", 
-                                 "facebook/bart-large",         
+                        choices=["bart-random-base",
+                                 "facebook/bart-base",
+                                 "facebook/bart-large",
                                  "t5-small",
                                  "t5-base",
                                  "t5-large",
@@ -561,106 +577,104 @@ def get_parameter():
     parser.add_argument('--per_device_train_batch_size', type=int, default=64)
     parser.add_argument('--per_device_eval_batch_size', type=int, default=128)
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1,
-                        help= "Number of updates steps to accumulate before performing a backward/update pass."
+                        help="Number of updates steps to accumulate before performing a backward/update pass."
                         )
     parser.add_argument('--num_train_epochs', type=int, default=-1)
     parser.add_argument('--max_steps', type=int, default=-1,
                         help='If > 0: set total number of training steps to perform. Override num_train_epochs.')
     parser.add_argument('--warmup_steps', type=int, default=0,
-                    help='Linear warmup over warmup_steps.')
+                        help='Linear warmup over warmup_steps.')
     parser.add_argument('--warmup_ratio', type=float, default=0.1,
                         help='Linear warmup over warmup_ratio fraction of total steps.')
-    
-    parser.add_argument('--optimizer', type=str, default='adamW', 
+
+    parser.add_argument('--optimizer', type=str, default='adamW',
                         help='The optimizer to use.')
     parser.add_argument('--lr', type=float, default=4e-5, help='The initial learning rate for training.')
     # adam_beta1: float = field(default=0.9, metadata={"help": "Beta1 for AdamW optimizer"})
     # adam_beta2: float = field(default=0.999, metadata={"help": "Beta2 for AdamW optimizer"})
-    parser.add_argument('--weight_decay', type=float, default=0.0, 
+    parser.add_argument('--weight_decay', type=float, default=0.0,
                         help='Weight decay for AdamW if we apply some.')
-    parser.add_argument('--adam_epsilon', type=float, default=1e-8, 
-                    help='Epsilon for AdamW optimizer.')
-    parser.add_argument('--max_grad_norm', type=float, default=1.0, 
-                help='Max gradient norm.')
-    
+    parser.add_argument('--adam_epsilon', type=float, default=1e-8,
+                        help='Epsilon for AdamW optimizer.')
+    parser.add_argument('--max_grad_norm', type=float, default=1.0,
+                        help='Max gradient norm.')
+
     parser.add_argument('--patience', type=int, default=2,
                         help='If the performance of model on the validation does not improve for n times, '
                              'we will stop training.')
 
     parser.add_argument('--resume', action='store_true', help='whether load the best checkpoint or not.')
     # parameters for models
-    parser.add_argument("--source_prefix", type=str, default=None, help="A prefix to add before every source text (useful for T5 models).",
-    )
+    parser.add_argument("--source_prefix", type=str, default=None,
+                        help="A prefix to add before every source text (useful for T5 models).",
+                        )
     parser.add_argument('--max_src_len', type=int, default=512, help='the max length of the source text.')
     parser.add_argument('--max_tgt_len', type=int, default=256, help='the max length of the tgt text.')
 
     parser.add_argument('--use_evidence', action='store_true',
                         help='whether use evidences to revise the original claim.')
     parser.add_argument('--use_gold_evidence', action='store_true',
-                    help='whether use gold or retrieved evidences.')
+                        help='whether use gold or retrieved evidences.')
     parser.add_argument('--num_evidence', type=int, default=1,
                         help='the number of evidences used to revise the original claim.')
-    
+
     parser.add_argument('--use_mutation_type', action='store_true',
                         help='whether use the mutation type as input.')
-    
-    # parameters for fp 16 
+
+    # parameters for fp 16
     parser.add_argument('--fp16', action='store_true',
                         help='whether to use fp16 (mixed) precision instead of 32-bit.')
     parser.add_argument('--fp16_opt_level', type=str, default="O1",
                         help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']. "
-                         "See details at https://nvidia.github.io/apex/amp.html")
+                             "See details at https://nvidia.github.io/apex/amp.html")
     # paramters for log
     parser.add_argument('--logging_steps', type=int, default=100,
                         help='Log every X updates steps.')
     parser.add_argument('--save_steps', type=int, default=100,
-                    help='Save checkpoint every X updates steps.')
+                        help='Save checkpoint every X updates steps.')
 
     parser.add_argument('--tensorboard_dir', type=str, default="../tensorboard_log",
                         help="Tensorboard log dir.")
 
-
-    parser.add_argument("--output_dir", type=str, default=None, 
+    parser.add_argument("--output_dir", type=str, default=None,
                         help="dir for model checkpoints, logs and generated text.",
-    )
-    
+                        )
+
     # parameters for decoding
     # Arguments will be passed to ``model.generate``, which is used during ``evaluate`` and ``predict``.
     parser.add_argument('--num_beams', type=int, default=1,
-                    help='Number of beams for beam search. 1 means no beam search.')
+                        help='Number of beams for beam search. 1 means no beam search.')
     parser.add_argument('--do_sample', action='store_true',
-                    help='Whether or not to use sampling; use greedy/beam search decoding otherwise.')
+                        help='Whether or not to use sampling; use greedy/beam search decoding otherwise.')
     parser.add_argument('--top_k', type=int, default=0,
                         help='The number of highest probability vocabulary tokens to keep for top-k-filtering.')
     parser.add_argument('--top_p', type=float, default=1.0,
-                    help="If set to float < 1, only the most probable tokens with probabilities "
-                          "that add up to `top_p` or higher are kept for generation.")
-    parser.add_argument('--world_size', type=int, default=1, help="Total number of processes for distributed training")
+                        help="If set to float < 1, only the most probable tokens with probabilities "
+                             "that add up to `top_p` or higher are kept for generation.")
+
     parser.add_argument('--num_beam_groups', type=int, default=1,
-                    help="Number of groups to divide num_beams into in order to ensure diversity among different groups of beams."
-                         "This paper (https://arxiv.org/pdf/1610.02424.pdf) for more details.")
+                        help="Number of groups to divide num_beams into in order to ensure diversity among different groups of beams."
+                             "This paper (https://arxiv.org/pdf/1610.02424.pdf) for more details.")
     parser.add_argument('--num_return_sequences', type=int, default=1,
-                    help="The number of independently computed returned sequences for each element in the batch.")
+                        help="The number of independently computed returned sequences for each element in the batch.")
     parser.add_argument('--repetition_penalty', type=float, default=1.0,
-                    help="The parameter for repetition penalty. 1.0 means no penalty. "
-                        "See [this paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.")
+                        help="The parameter for repetition penalty. 1.0 means no penalty. "
+                             "See [this paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.")
     parser.add_argument('--temperature', type=float, default=1.0,
-                    help="The value used to module the next token probabilities.")
-    
+                        help="The value used to module the next token probabilities.")
+
     parser.add_argument('--preprocessing_num_workers', type=int, default=5,
-                help='The number of processes to use for the preprocessing.')
+                        help='The number of processes to use for the preprocessing.')
     # torch2.0 use 'local-rank', other versions use 'local_rank'
     parser.add_argument('--local-rank', type=int, default=-1)
-    parser.add_argument('--local_rank', type=int, default=-1)
-    
+
     args = parser.parse_args()
     assert args.do_train + args.do_eval + args.do_predict == 1, print('Specify do_train, do_eval or do_predict.')
-    
-    
+
     if args.use_evidence:
         assert args.num_evidence > 0
 
-    dir_prefix = f"{args.initialization.replace('/','-')}/seed{args.seed}_lr{args.lr}"
+    dir_prefix = f"{args.initialization.replace('/', '-')}/seed{args.seed}_lr{args.lr}"
 
     if args.use_evidence:
         if args.use_gold_evidence:
@@ -670,12 +684,13 @@ def get_parameter():
     if args.use_mutation_type:
         dir_prefix += f'_use-mutation-type'
 
-    if args.dataset_percent<1:
+    if args.dataset_percent < 1:
         dir_prefix += f'_{args.dataset_percent}-data-percent'
-    if args.num_data_instance>0:
+    if args.num_data_instance > 0:
         dir_prefix += f'_{args.num_data_instance}-data-instance'
-    assert args.dataset_percent==1 or args.num_data_instance==-1, print("Do not set both dataset_percent and num_data_instance.")
-    
+    assert args.dataset_percent == 1 or args.num_data_instance == -1, print(
+        "Do not set both dataset_percent and num_data_instance.")
+
     if args.output_dir is None:
         if args.do_train:
             args.output_dir = f'../checkpoints/{dir_prefix}'
@@ -683,19 +698,19 @@ def get_parameter():
             args.output_dir = args.model_path
     args.tensorboard_dir = f'../tensorboard_log/{dir_prefix}'
     args.log_file = f'{args.output_dir}/log.txt'
-    
+
     return args
+
 
 def set_env(args):
     # Setup CUDA, GPU & distributed training
-    local_rank = int(os.environ["LOCAL_RANK"])
     if args.local_rank == -1:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         args.n_gpu = torch.cuda.device_count()
     else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
-        torch.cuda.set_device(local_rank)
-        device = torch.device("cuda",local_rank)
-        torch.distributed.init_process_group(backend="nccl",init_method="env://",world_size=int(os.environ["WORLD_SIZE"]),rank=int(os.environ["RANK"]))
+        torch.cuda.set_device(args.local_rank)
+        device = torch.device("cuda", args.local_rank)
+        torch.distributed.init_process_group(backend="nccl")
         args.n_gpu = torch.distributed.get_world_size()
 
     args.device = device
@@ -709,8 +724,8 @@ def set_env(args):
     )
 
     logger.warning("Process rank: %s, device: %s, n_gpu: %s, distributed training: %s, 16-bits training: %s",
-                  args.local_rank, device, args.n_gpu, bool(args.local_rank != -1), args.fp16
-    )
+                   args.local_rank, device, args.n_gpu, bool(args.local_rank != -1), args.fp16
+                   )
 
     # Set seed
     set_seed(args.seed, args.n_gpu)
@@ -718,7 +733,7 @@ def set_env(args):
     # Create output file
     if not os.path.exists(args.output_dir) and args.local_rank in [-1, 0]:
         os.makedirs(args.output_dir)
-        
+
     if not os.path.exists(args.tensorboard_dir) and args.local_rank in [-1, 0]:
         os.makedirs(args.tensorboard_dir)
 
@@ -727,7 +742,7 @@ def set_env(args):
 
     basic_format = "%(asctime)s - %(levelname)s - %(name)s -   %(message)s"
     formatter = logging.Formatter(basic_format)
-    
+
     # sh = logging.StreamHandler()
     handler = logging.FileHandler(args.log_file, 'a', 'utf-8')
 
@@ -737,11 +752,12 @@ def set_env(args):
     logger.setLevel(logging.INFO if args.local_rank in [-1, 0] else logging.WARN)
     print(logger)
 
+
 def load_model(args):
     # Load pretrained model and tokenizer
     if args.local_rank not in [-1, 0]:
         torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
-    
+
     try:
         if args.resume:
             # load the pre-trained model and tokenizer
@@ -772,11 +788,12 @@ def load_model(args):
     model.to(args.device)
     return tokenizer, model
 
+
 def main():
     args = get_parameter()
     set_env(args)
     tokenizer, model = load_model(args)
-    
+
     if args.source_prefix is None and args.initialization in [
         "t5-small",
         "t5-base",
@@ -788,10 +805,10 @@ def main():
             "You're running a t5 model but didn't provide a source prefix, which is the expected, e.g. with "
             "`--source_prefix 'summarize: ' `"
         )
-    
+
     if args.do_train:
         logger.info("*** Train ***")
-        logger.info("args:\n%s", '\n'.join([f'    {arg}={getattr(args, arg)}'  for arg in vars(args)]))
+        logger.info("args:\n%s", '\n'.join([f'    {arg}={getattr(args, arg)}' for arg in vars(args)]))
         global_step = train(model, tokenizer, args)
         logger.info(" global_step = %s", global_step)
         # if args.do_eval or args.do_predict:
@@ -800,13 +817,13 @@ def main():
         #     tokenizer, model = load_model(args)
 
     if args.do_eval:
-        logger.info("*** Evaluate ***") 
+        logger.info("*** Evaluate ***")
         evaluate(model, tokenizer, args)
 
     if args.do_predict:
         logger.info("*** Predict ***")
         predict(model, tokenizer, args)
-    
+
 
 if __name__ == "__main__":
     main()
