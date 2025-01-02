@@ -90,9 +90,9 @@ class Seq2SeqDataset(Dataset):
                 instance = json.loads(line)
                 if self.use_evidence:
                     if self.use_gold_evidence:
-                        collected_evidence = instance['gold_evidence'][:self.num_evidence]
+                        collected_evidence = instance['gold_evidence'][:self.num_evidence-1]
                     else:
-                        collected_evidence = instance['retrieved_evidence'][:self.num_evidence]
+                        collected_evidence = instance['retrieved_evidence'][:self.num_evidence-1]
                     collected_evidence = [maybe_format(title, content) for title, content in collected_evidence]
                     evidence = " ### ".join(collected_evidence)
                 else:
@@ -704,6 +704,7 @@ def get_parameter():
 
 def set_env(args):
     # Setup CUDA, GPU & distributed training
+    args.local_rank = int(os.environ['LOCAL_RANK'])
     if args.local_rank == -1:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         args.n_gpu = torch.cuda.device_count()
