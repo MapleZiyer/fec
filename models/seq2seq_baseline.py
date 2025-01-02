@@ -37,6 +37,7 @@ from utils.text_process import maybe_format
 # logger = logging.getLogger(__name__)
 logger = logging.getLogger("__main__")
 
+
 class Seq2SeqDataset(Dataset):
     """
     this class is used for loading training/validation/testing set for seq2seq models.
@@ -650,6 +651,7 @@ def get_parameter():
                 help='The number of processes to use for the preprocessing.')
     # torch2.0 use 'local-rank', other versions use 'local_rank'
     parser.add_argument('--local-rank', type=int, default=-1)
+    parser.add_argument('--local_rank', type=int, default=-1)
     
     args = parser.parse_args()
     assert args.do_train + args.do_eval + args.do_predict == 1, print('Specify do_train, do_eval or do_predict.')
@@ -686,13 +688,14 @@ def get_parameter():
 
 def set_env(args):
     # Setup CUDA, GPU & distributed training
+    local_rank = int(os.environ["LOCAL_RANK"])
     if args.local_rank == -1:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         args.n_gpu = torch.cuda.device_count()
     else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
         torch.cuda.set_device(args.local_rank)
         device = torch.device("cuda", args.local_rank)
-        torch.distributed.init_process_group(backend="nccl")
+        torch.distributed.init_process_group(backend="nccl",init_method="env://",world_size=args.world_size,rank=int(os.environ["RANK"]))
         args.n_gpu = torch.distributed.get_world_size()
 
     args.device = device
