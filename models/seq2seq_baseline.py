@@ -693,8 +693,8 @@ def set_env(args):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         args.n_gpu = torch.cuda.device_count()
     else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
-        torch.cuda.set_device(args.local_rank)
-        device = torch.device("cuda", args.local_rank)
+        torch.cuda.set_device(local_rank)
+        device = torch.device("cuda",local_rank)
         torch.distributed.init_process_group(backend="nccl",init_method="env://",world_size=args.world_size,rank=int(os.environ["RANK"]))
         args.n_gpu = torch.distributed.get_world_size()
 
