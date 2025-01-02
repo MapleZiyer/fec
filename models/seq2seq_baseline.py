@@ -548,11 +548,11 @@ def get_parameter():
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--dataset', type=str, default='seq2seq_data',
                         help='the path of the src and tgt data.')
-    parser.add_argument('--train_file', type=str, default='../seq2seq_data/train.jsonl',
+    parser.add_argument('--train_file', type=str, default='../openai_augmented_data/gold_negate_8-shot_2-retrieved-evidence_train_gpt-3.5-turbo.jsonl',
                         help='The input training data file (a jsonlines).')
     parser.add_argument('--validation_file', type=str, default=None,
                         help='An optional input evaluation data file to evaluate the metrics (nll loss) on a jsonlines file.')
-    parser.add_argument('--test_file', type=str, default='../seq2seq_data/test.jsonl',
+    parser.add_argument('--test_file', type=str, default='../openai_augmented_data/gold_negate_8-shot_2-retrieved-evidence_dev_gpt-3.5-turbo.jsonl',
                         help='An optional input test data file to evaluate the metrics (sari) on a jsonlines file.')
 
     parser.add_argument('--dataset_percent', type=float, default=1,

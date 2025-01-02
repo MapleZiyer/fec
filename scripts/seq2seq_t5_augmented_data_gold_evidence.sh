@@ -28,7 +28,6 @@ do
     CUDA_VISIBLE_DEVICES=0,1 \
     python -u -m torch.distributed.launch --nproc_per_node=2 --master_port=9538  \
         ../models/seq2seq_baseline.py \
-        --validation_file ../openai_augmented_data/${DATA_PREFIX}_dev_gpt-3.5-turbo.jsonl \
         --initialization t5-base \
         --use_evidence --num_evidence 1 --use_gold_evidence \
         --model_path ../openai_augmented_checkpoints/${DATA_PREFIX}_${NUM_DATA_INSTANCE}-data-instance_2-gold-evidence --resume \
