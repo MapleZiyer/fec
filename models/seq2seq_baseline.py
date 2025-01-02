@@ -124,9 +124,6 @@ class Seq2SeqDataset(Dataset):
             return instance["src"]
 
         src = "claim: " + instance["src"]
-        if instance["mutation_type"] is not None and self.use_mutation_type:
-            src += " " + "mutation: " + instance["mutation_type"]
-
         if instance["evidence"] is not None and self.use_evidence:
             src += " " + "evidence: " + instance["evidence"]
         return src
