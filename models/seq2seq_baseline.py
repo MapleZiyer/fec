@@ -106,6 +106,7 @@ class Seq2SeqDataset(Dataset):
                 }
                 self.data_list.append(data_instance)
 
+
         if self.dataset_percent < 1:
             self.num_data_instance = int(self.dataset_percent * len(self.data_list))
 
