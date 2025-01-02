@@ -705,6 +705,7 @@ def get_parameter():
 def set_env(args):
     # Setup CUDA, GPU & distributed training
     args.local_rank = int(os.environ['LOCAL_RANK'])
+    local_rank = int(os.environ["LOCAL_RANK"])
     if args.local_rank == -1:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         args.n_gpu = torch.cuda.device_count()
