@@ -635,7 +635,7 @@ def get_parameter():
     parser.add_argument('--top_p', type=float, default=1.0,
                     help="If set to float < 1, only the most probable tokens with probabilities "
                           "that add up to `top_p` or higher are kept for generation.")
-
+    parser.add_argument('--world_size', type=int, default=1, help="Total number of processes for distributed training")
     parser.add_argument('--num_beam_groups', type=int, default=1,
                     help="Number of groups to divide num_beams into in order to ensure diversity among different groups of beams."
                          "This paper (https://arxiv.org/pdf/1610.02424.pdf) for more details.")

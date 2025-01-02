@@ -20,6 +20,7 @@ do
         --save_steps 50 --max_steps 400 \
         --do_train --use_evidence --num_evidence 1 --use_gold_evidence  \
         --num_data_instance $NUM_DATA_INSTANCE \
+	--world_size 4 \
         --output_dir ../openai_augmented_checkpoints/${DATA_PREFIX}_${NUM_DATA_INSTANCE}-data-instance_2-gold-evidence 
 
 
@@ -28,6 +29,7 @@ do
         ../models/seq2seq_baseline.py \
         --validation_file ../openai_augmented_data/${DATA_PREFIX}_dev_gpt-3.5-turbo.jsonl \
         --initialization t5-base \
+	--world_size 4 \
         --use_evidence --num_evidence 1 --use_gold_evidence \
         --model_path ../openai_augmented_checkpoints/${DATA_PREFIX}_${NUM_DATA_INSTANCE}-data-instance_2-gold-evidence --resume \
         --do_eval
@@ -39,6 +41,7 @@ do
             ../models/seq2seq_baseline.py   \
             --initialization t5-base \
             --per_device_eval_batch_size 64 \
+	    --world_size 1 \
             --use_evidence --num_evidence 1 --use_gold_evidence  \
             --model_path ../openai_augmented_checkpoints/${DATA_PREFIX}_${NUM_DATA_INSTANCE}-data-instance_2-gold-evidence --resume \
             --num_beams $num_beams \
