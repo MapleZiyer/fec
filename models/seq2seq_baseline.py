@@ -34,6 +34,7 @@ from tensorboardX import SummaryWriter
 sys.path.append('../')
 from utils.functions import set_seed, get_optimizer
 from utils.text_process import maybe_format
+from datetime import timedelta
 
 # logger = logging.getLogger(__name__)
 logger = logging.getLogger("__main__")
@@ -711,7 +712,7 @@ def set_env(args):
     else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
         torch.cuda.set_device(args.local_rank)
         device = torch.device("cuda", args.local_rank)
-        torch.distributed.init_process_group(backend="nccl",timeout=torch.timedelta(minutes=30))
+        torch.distributed.init_process_group(backend="nccl",timeout=timedelta(minutes=30))
         args.n_gpu = torch.distributed.get_world_size()
 
     args.device = device
