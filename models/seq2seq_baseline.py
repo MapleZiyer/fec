@@ -106,7 +106,7 @@ class Seq2SeqDataset(Dataset):
                     "evidence": evidence,
                 }
                 self.data_list.append(data_instance)
-                print(data_instance+'\n')
+                print(f"{data_instance}\n")
 
 
         if self.dataset_percent < 1:
