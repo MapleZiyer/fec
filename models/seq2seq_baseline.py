@@ -711,7 +711,7 @@ def set_env(args):
     else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
         torch.cuda.set_device(args.local_rank)
         device = torch.device("cuda", args.local_rank)
-        torch.distributed.init_process_group(backend="nccl")
+        torch.distributed.init_process_group(backend="nccl",timeout=torch.timedelta(minutes=30))
         args.n_gpu = torch.distributed.get_world_size()
 
     args.device = device
@@ -739,7 +739,7 @@ def set_env(args):
         os.makedirs(args.tensorboard_dir)
 
     if args.local_rank != -1:
-        torch.distributed.barrier()  # Make sure only the first process in distributed training will create the output dir.
+        torch.distributed.barrier(device_ids=[args.local_rank])  # Make sure only the first process in distributed training will create the output dir.
 
     basic_format = "%(asctime)s - %(levelname)s - %(name)s -   %(message)s"
     formatter = logging.Formatter(basic_format)
