@@ -105,6 +105,7 @@ class Seq2SeqDataset(Dataset):
                     "evidence": evidence,
                 }
                 self.data_list.append(data_instance)
+                print(data_instance+'\n')
 
 
         if self.dataset_percent < 1:
@@ -603,7 +604,7 @@ def get_parameter():
 
     parser.add_argument('--resume', action='store_true', help='whether load the best checkpoint or not.')
     # parameters for models
-    parser.add_argument("--source_prefix", type=str, default=None,
+    parser.add_argument("--source_prefix", type=str, default="correct: ",
                         help="A prefix to add before every source text (useful for T5 models).",
                         )
     parser.add_argument('--max_src_len', type=int, default=512, help='the max length of the source text.')

@@ -15,7 +15,6 @@ do
     CUDA_VISIBLE_DEVICES=0,1 \
     torchrun --nproc_per_node=2 --master_port=9538 \
         ../models/seq2seq_baseline.py \
-	--device_ids 0,1 \
         --train_file ../openai_augmented_data/${DATA_PREFIX}_train_gpt-3.5-turbo.jsonl \
         --initialization t5-base \
         --model_path ~/.cache/huggingface/hub/models--google-t5--t5-base/snapshots/a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1 \
@@ -32,7 +31,6 @@ do
     CUDA_VISIBLE_DEVICES=0,1 \
     torchrun --nproc_per_node=2 --master_port=9538 \
         ../models/seq2seq_baseline.py \
-	--device_ids 0,1 \
         --initialization t5-base \
         --use_evidence --num_evidence 1 --use_gold_evidence \
         --model_path ../openai_augmented_checkpoints/${DATA_PREFIX}_${NUM_DATA_INSTANCE}-data-instance_2-gold-evidence --resume \
