@@ -13,7 +13,7 @@ do
 
     # 1. Train
     CUDA_VISIBLE_DEVICES=0,1 \
-    torchrun --nproc_per_node=2 --master_port=9538 \
+    NCCL_P2P_DISABLE=1 torchrun --nproc_per_node=2 --master_port=9538 \
         ../models/seq2seq_baseline.py \
         --train_file ../openai_augmented_data/${DATA_PREFIX}_train_gpt-3.5-turbo.jsonl \
         --initialization t5-base \
@@ -29,7 +29,7 @@ do
 
     # 2. Eval
     CUDA_VISIBLE_DEVICES=0,1 \
-    torchrun --nproc_per_node=2 --master_port=9538 \
+    NCCL_P2P_DISABLE=1 torchrun --nproc_per_node=2 --master_port=9538 \
         ../models/seq2seq_baseline.py \
         --initialization t5-base \
         --use_evidence --num_evidence 1 --use_gold_evidence \
