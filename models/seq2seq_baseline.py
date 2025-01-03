@@ -359,6 +359,7 @@ def evaluate(model, tokenizer, args):
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank],
                                                           output_device=args.local_rank, find_unused_parameters=False)
     model.eval()
+    if args.validation_file is not None:
     dev_dataset = Seq2SeqDataset(args.validation_file, tokenizer,
                                  max_src_len=args.max_src_len, max_tgt_len=args.max_tgt_len,
                                  use_evidence=args.use_evidence, use_gold_evidence=args.use_gold_evidence,
