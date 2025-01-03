@@ -91,11 +91,11 @@ class Seq2SeqDataset(Dataset):
                 instance = json.loads(line)
                 if self.use_evidence:
                     if self.use_gold_evidence:
-                        collected_evidence = instance['gold_evidence'][:self.num_evidence-1]
+                        collected_evidence = instance['gold_evidence']
                     else:
-                        collected_evidence = instance['retrieved_evidence'][:self.num_evidence-1]
-                    collected_evidence = [maybe_format(title, content) for title, content in collected_evidence]
-                    evidence = " ### ".join(collected_evidence)
+                        collected_evidence = instance['retrieved_evidence']
+                    #collected_evidence = [maybe_format(title, content) for title, content in collected_evidence]
+                    #evidence = " ### ".join(collected_evidence)
                 else:
                     evidence = None
                 # print(evidence)
@@ -103,7 +103,7 @@ class Seq2SeqDataset(Dataset):
                 data_instance = {
                     "src": instance["mutated"],
                     "tgt": instance["original"],
-                    "evidence": evidence,
+                    "evidence": collected_evidence,
                 }
                 self.data_list.append(data_instance)
                 print(f"{data_instance}\n")
