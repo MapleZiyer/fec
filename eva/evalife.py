@@ -4,9 +4,9 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from evaluate import load
 import os
 
-# 加载SARI评分系统
-sari = load("sari")
-
+# 加载评分系统
+sari = load("He-Xingwei/sari_metric")
+rouge = load('rouge')
 # 加载预训练模型和tokenizer
 model_name = "He-Xingwei/LIFE-Corrector-GE"  # 替换为你的模型名称
 tokenizer = AutoTokenizer.from_pretrained(model_name)
