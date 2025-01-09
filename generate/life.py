@@ -5,7 +5,7 @@ from evaluate import load
 import os
 
 # 加载预训练模型和tokenizer
-model_name = "He-Xingwei/LIFE-Corrector-GE"  # 替换为你的模型名称
+model_name = "./local_model/models--He-Xingwei--LIFE-Corrector-GE/snapshots/09af74df7b7497de3516fb20adeb78c26ff93202"  # 替换为你的模型名称
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 model.eval()
