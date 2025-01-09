@@ -15,10 +15,15 @@ def load_data(input_filename, output_filename):
     with open(input_filename, 'r') as fr, open(output_filename, 'w') as fw:
         for line in fr:
             data_instance = json.loads(line)
-
+            input_data = {
+                "mutated": data_instance["tgt"],
+                "gold_evidence": data_instance["evidence"],
+                "origin": ""
+            }
+            input_str = json.dumps(input_data, ensure_ascii=False)
+            print(input_str)
             # 提取 tgt 和 evidence 输入模型生成预测
-            input_text = data_instance['tgt'] + " " + data_instance['evidence']
-            inputs = tokenizer(input_text, return_tensors="pt", truncation=True, max_length=512, padding=True)
+            inputs = tokenizer(input_str, return_tensors="pt", truncation=True, max_length=512, padding=True)
             output = model.generate(**inputs)
             prediction = tokenizer.decode(output[0], skip_special_tokens=True)
 
@@ -32,6 +37,7 @@ def load_data(input_filename, output_filename):
             # 写入文件
             fw.write(json.dumps(output_data, ensure_ascii=False) + '\n')
             print(output_data)
+            print('\n')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Factual Error Correction.")
