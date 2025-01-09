@@ -11,6 +11,7 @@ model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 model.eval()
 
 
+
 def load_data(input_filename, output_filename):
     with open(input_filename, 'r') as fr, open(output_filename, 'w') as fw:
         for line in fr:
